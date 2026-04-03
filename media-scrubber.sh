@@ -171,13 +171,10 @@ if [[ "$INTERNAL_RUN" == "false" ]]; then
         fi
 
         # Determine cross-platform UID/GID for TrueNAS/Unraid safe file ownership
-        if stat -c "%u" "$TARGET_DIR" >/dev/null 2>&1; then
-            TARGET_UID=$(stat -c "%u" "$TARGET_DIR")
-            TARGET_GID=$(stat -c "%g" "$TARGET_DIR")
-        else
-            TARGET_UID=$(stat -f "%u" "$TARGET_DIR" 2>/dev/null || id -u)
-            TARGET_GID=$(stat -f "%g" "$TARGET_DIR" 2>/dev/null || id -g)
-        fi
+        # Use read to capture both UID/GID in a single stat call (supports GNU or BSD stat)
+        read -r TARGET_UID TARGET_GID < <(stat -c "%u %g" "$TARGET_DIR" 2>/dev/null || stat -f "%u %g" "$TARGET_DIR" 2>/dev/null)
+        TARGET_UID=${TARGET_UID:-$(id -u)}
+        TARGET_GID=${TARGET_GID:-$(id -g)}
 
         MOUNT_OPTS=$([[ "$DRY_RUN" == "true" ]] && echo "ro" || echo "rw")
 
