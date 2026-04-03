@@ -235,7 +235,8 @@ trap 'echo -e "\n🛑 Interrupted! Cleaning up..."; [ -n "${tmp_file:-}" ] && rm
 IFS=',' read -r -a lang_arr <<< "$KEEP_LANGS"
 KEEP_REGEX="^(und|zxx|mis"
 for lang in "${lang_arr[@]}"; do
-    lang=$(echo "$lang" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+    lang="${lang// /}"
+    lang="${lang,,}"
     [[ -n "$lang" ]] && KEEP_REGEX="${KEEP_REGEX}|${lang}"
 done
 KEEP_REGEX="${KEEP_REGEX})(-[a-z0-9]+)?$"
@@ -296,7 +297,7 @@ while IFS= read -r -d "" subfile; do
     filename=$(basename "$subfile")
 
     if [[ "$filename" =~ \.([a-zA-Z]{2,3}(-[a-zA-Z]{2,4})?)(\.(forced|sdh|cc|hi|default))?\.srt$ ]]; then
-        lang_code=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+        lang_code="${BASH_REMATCH[1],,}"
         lang_base="${lang_code%%-*}"
 
         if [[ "$lang_base" =~ $KNOWN_LANGS_REGEX ]]; then
@@ -412,7 +413,7 @@ while IFS= read -r -d "" file; do
     while IFS=$'\t' read -r idx codec lang; do
         lang="${lang#"${lang%%[![:space:]]*}"}"
         lang="${lang%"${lang##*[![:space:]]}"}"
-        lang=$(echo "$lang" | tr '[:upper:]' '[:lower:]')
+        lang="${lang,,}"
 
         [[ -z "$idx" ]] && continue
 
