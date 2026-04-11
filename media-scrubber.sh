@@ -284,35 +284,41 @@ commit_output() {
     [[ "$NEEDS_TAG_STRIP" -eq 1 ]] && ((STAT_TAGS_STRIPPED++))
 }
 
-echo ""
-echo "===================================================================="
-echo "Phase 1: Efficiently Cleaning External Non-Target .srt Files"
-echo "===================================================================="
+# --- SUBTITLE SCRUBBER ---
+# Logic to recursively find and remove external non-target .srt files.
+scrub_subtitles() {
+    echo "===================================================================="
+    echo "Phase 1: Efficiently Cleaning External Non-Target .srt Files"
+    echo "===================================================================="
 
-while IFS= read -r -d "" subfile; do
-    ((STAT_SRT_TOTAL++))
-    filename=$(basename "$subfile")
+    while IFS= read -r -d "" subfile; do
+        ((STAT_SRT_TOTAL++))
+        filename=$(basename "$subfile")
 
-    if [[ "$filename" =~ \.([a-zA-Z]{2,3}(-[a-zA-Z]{2,4})?)(\.(forced|sdh|cc|hi|default))?\.srt$ ]]; then
-        lang_code="${BASH_REMATCH[1],,}"
-        lang_base="${lang_code%%-*}"
+        if [[ "$filename" =~ \.([a-zA-Z]{2,3}(-[a-zA-Z]{2,4})?)(\.(forced|sdh|cc|hi|default))?\.srt$ ]]; then
+            lang_code="${BASH_REMATCH[1],,}"
+            lang_base="${lang_code%%-*}"
 
-        if [[ "$lang_base" =~ $KNOWN_LANGS_REGEX ]]; then
-            if [[ ! "$lang_code" =~ $KEEP_REGEX ]]; then
-                file_size=$(get_file_size "$subfile")
+            if [[ "$lang_base" =~ $KNOWN_LANGS_REGEX ]]; then
+                if [[ ! "$lang_code" =~ $KEEP_REGEX ]]; then
+                    file_size=$(get_file_size "$subfile")
 
-                if [[ "$DRY_RUN" == "true" ]]; then
-                    echo "👀 [DRY-RUN] Would delete non-target subtitle: $filename"
-                else
-                    echo "🗑️  Deleting non-target subtitle: $filename"
-                    rm -f "$subfile"
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        echo "👀 [DRY-RUN] Would delete non-target subtitle: $filename"
+                    else
+                        echo "🗑️  Deleting non-target subtitle: $filename"
+                        rm -f "$subfile"
+                    fi
+                    ((STAT_SRT_SAVED_BYTES+=file_size))
+                    ((STAT_SRT_REMOVED++))
                 fi
-                ((STAT_SRT_SAVED_BYTES+=file_size))
-                ((STAT_SRT_REMOVED++))
             fi
         fi
-    fi
-done < <(find "$TARGET_DIR" -type f -iname "*.srt" -print0)
+    done < <(find "$TARGET_DIR" -type f -iname "*.srt" -print0)
+}
+
+echo ""
+scrub_subtitles
 
 echo ""
 echo "===================================================================="
