@@ -502,7 +502,7 @@ while IFS= read -r -d "" file; do
 
             if [[ -n "$OLD_DUR_RAW" ]] && [[ -n "$NEW_DUR_RAW" ]]; then
                 # Float-safe comparison via awk (threshold: ±5 seconds)
-                if awk "BEGIN { diff = $OLD_DUR_RAW - $NEW_DUR_RAW; if (diff < 0) diff = -diff; exit (diff <= 5 ? 0 : 1) }"; then
+                if awk -v old="$OLD_DUR_RAW" -v new="$NEW_DUR_RAW" 'BEGIN { diff = old - new; if (diff < 0) diff = -diff; exit (diff <= 5 ? 0 : 1) }'; then
                     commit_output
                 else
                     OLD_DUR_INT=$(printf "%.0f" "$OLD_DUR_RAW")
