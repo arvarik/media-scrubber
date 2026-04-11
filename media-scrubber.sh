@@ -291,7 +291,7 @@ echo "===================================================================="
 
 while IFS= read -r -d "" subfile; do
     ((STAT_SRT_TOTAL++))
-    filename=$(basename "$subfile")
+    filename="${subfile##*/}"
 
     if [[ "$filename" =~ \.([a-zA-Z]{2,3}(-[a-zA-Z]{2,4})?)(\.(forced|sdh|cc|hi|default))?\.srt$ ]]; then
         lang_code="${BASH_REMATCH[1],,}"
@@ -321,7 +321,7 @@ echo "===================================================================="
 if [[ "$CLEAN_JUNK" == "true" ]]; then
     while IFS= read -r -d "" junkfile; do
         junk_size=$(get_file_size "$junkfile")
-        filename=$(basename "$junkfile")
+        filename="${junkfile##*/}"
         if [[ "$DRY_RUN" == "true" ]]; then
             echo "👀 [DRY-RUN] Would delete junk file: $filename"
         else
@@ -334,7 +334,7 @@ if [[ "$CLEAN_JUNK" == "true" ]]; then
 
     if [[ "$DRY_RUN" == "false" ]]; then
         while IFS= read -r -d "" emptydir; do
-            echo "🗑️  Deleting empty directory: $(basename "$emptydir")"
+            echo "🗑️  Deleting empty directory: ${emptydir##*/}"
             rmdir "$emptydir" 2>/dev/null || true
             ((STAT_DIRS_REMOVED++))
         done < <(find "$TARGET_DIR" -depth -type d -empty -print0)
@@ -342,7 +342,7 @@ if [[ "$CLEAN_JUNK" == "true" ]]; then
         # In dry-run, files weren't deleted, so only already-empty dirs are found.
         # Count and label these accurately; a live run may remove additional dirs freed by junk deletion.
         while IFS= read -r -d "" emptydir; do
-            echo "👀 [DRY-RUN] Would delete empty directory: $(basename "$emptydir")"
+            echo "👀 [DRY-RUN] Would delete empty directory: ${emptydir##*/}"
             ((STAT_DIRS_REMOVED++))
         done < <(find "$TARGET_DIR" -depth -type d -empty -print0)
     fi
@@ -372,7 +372,7 @@ while IFS= read -r -d "" file; do
         if [[ "$file_mtime" -gt 0 ]]; then
             file_age_min=$(( (CURRENT_TIME - file_mtime) / 60 ))
             if [[ "$file_age_min" -lt "$MIN_AGE_MINS" ]]; then
-                echo "⏭️  Skipping: $(basename "$file") (Modified ${file_age_min}m ago < threshold)."
+                echo "⏭️  Skipping: ${file##*/} (Modified ${file_age_min}m ago < threshold)."
                 ((STAT_MKV_SKIPPED_AGE++))
                 continue
             fi
@@ -383,7 +383,7 @@ while IFS= read -r -d "" file; do
     if [[ "$SKIP_HARDLINKS" == "true" ]]; then
         links=$(get_file_links "$file")
         if [[ "$links" -gt 1 ]]; then
-            echo "⏭️  Skipping: $(basename "$file") is hardlinked ($links links)."
+            echo "⏭️  Skipping: ${file##*/} is hardlinked ($links links)."
             ((STAT_MKV_SKIPPED_LINKS++))
             continue
         fi
@@ -441,12 +441,12 @@ while IFS= read -r -d "" file; do
     fi
 
     if [[ "$AUDIO_TOTAL" -gt 0 ]] && [[ "$AUDIO_KEPT" -eq 0 ]]; then
-        echo "⚠️  WARNING: Stripping foreign audio leaves $(basename "$file") SILENT! Skipping."
+        echo "⚠️  WARNING: Stripping foreign audio leaves ${file##*/} SILENT! Skipping."
         continue
     fi
 
     echo "------------------------------------------------"
-    echo "⚙️  Processing: $(basename "$file")"
+    echo "⚙️  Processing: ${file##*/}"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "   👀 [DRY-RUN] FFmpeg drop maps calculated as: ${DROP_ARGS[*]}"
@@ -465,7 +465,7 @@ while IFS= read -r -d "" file; do
     AVAILABLE_BYTES=$((AVAILABLE_KB * 1024))
 
     if [[ "$AVAILABLE_BYTES" -lt "$REQUIRED_BYTES" ]]; then
-        echo "⚠️  WARNING: Insufficient disk space to process $(basename "$file"). Skipping."
+        echo "⚠️  WARNING: Insufficient disk space to process ${file##*/}. Skipping."
         continue
     fi
 
