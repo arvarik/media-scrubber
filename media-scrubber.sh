@@ -363,7 +363,7 @@ echo "Phase 2: Safely Scrubbing Embedded MKV Tracks & Metadata"
 echo "===================================================================="
 
 if [[ "$DRY_RUN" == "false" ]]; then
-    find "$TARGET_DIR" -type f -name "*.tmp.mkv" -mmin +120 -delete 2>/dev/null || true
+    find "$TARGET_DIR" -type f -name "*.mkv.*" -mmin +120 -delete 2>/dev/null || true
 fi
 
 # Snapshot current time once before the loop. A 60-minute age check does
@@ -474,7 +474,7 @@ while IFS= read -r -d "" file; do
         continue
     fi
 
-    tmp_file="${file%.mkv}.tmp.mkv"
+    tmp_file=$(mktemp "${file}.XXXXXX") || { echo "❌ ERROR: Failed to create temporary file for ${file##*/}. Skipping."; continue; }
 
     # --- 5. Generate Dynamic FFmpeg Args ---
     FF_DISPOSITION=()
@@ -533,7 +533,7 @@ while IFS= read -r -d "" file; do
         rm -f "$tmp_file"
     fi
     tmp_file=""
-done < <(find "$TARGET_DIR" -type f -iname "*.mkv" ! -name "*.tmp.mkv" -print0)
+done < <(find "$TARGET_DIR" -type f -iname "*.mkv" ! -name "*.mkv.*" -print0)
 
 # --- EMIT STATISTICS ---
 END_TIME=$(date +%s)
