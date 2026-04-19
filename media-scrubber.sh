@@ -263,6 +263,10 @@ get_file_size()  { stat -c "%s" "$1" 2>/dev/null || stat -f "%z" "$1" 2>/dev/nul
 get_file_mtime() { stat -c  %Y  "$1" 2>/dev/null || stat -f  %m  "$1" 2>/dev/null || echo 0; }
 get_file_links() { stat -c  '%h' "$1" 2>/dev/null || stat -f  '%l' "$1" 2>/dev/null || echo 1; }
 
+# Initialize disk space tracking
+AVAILABLE_KB=$(df -P -k "$TARGET_DIR" | awk 'NR==2 {print $4}' 2>/dev/null || echo 0)
+AVAILABLE_BYTES=$((AVAILABLE_KB * 1024))
+
 # Helper: commit a successfully remuxed tmp file over the original.
 # Usage: commit_output [description_suffix]
 # Reads from outer-scope: file, tmp_file, FILE_SIZE_BYTES, AUDIO_TOTAL, AUDIO_KEPT,
@@ -276,6 +280,7 @@ commit_output() {
     # Preserve original mtime; non-fatal if filesystem doesn't support it
     touch -r "$file" "$tmp_file" || true
     mv -f "$tmp_file" "$file"
+    AVAILABLE_BYTES=$((AVAILABLE_BYTES + SAVED_BYTES))
     echo "✅ Successfully cleaned and replaced${1:+ ($1)}."
     ((STAT_MKV_ALTERED++))
     ((STAT_MKV_SAVED_BYTES+=SAVED_BYTES))
@@ -306,6 +311,7 @@ while IFS= read -r -d "" subfile; do
                 else
                     echo "🗑️  Deleting non-target subtitle: $filename"
                     rm -f "$subfile"
+                    AVAILABLE_BYTES=$((AVAILABLE_BYTES + file_size))
                 fi
                 ((STAT_SRT_SAVED_BYTES+=file_size))
                 ((STAT_SRT_REMOVED++))
@@ -327,6 +333,7 @@ if [[ "$CLEAN_JUNK" == "true" ]]; then
         else
             echo "🗑️  Deleting junk file: $filename"
             rm -f "$junkfile"
+            AVAILABLE_BYTES=$((AVAILABLE_BYTES + junk_size))
         fi
         ((STAT_JUNK_REMOVED++))
         ((STAT_JUNK_SAVED_BYTES+=junk_size))
@@ -461,8 +468,6 @@ while IFS= read -r -d "" file; do
     # --- 4. Disk Space Pre-Check ---
     FILE_SIZE_BYTES=$(get_file_size "$file")
     REQUIRED_BYTES=$((FILE_SIZE_BYTES * 11 / 10))
-    AVAILABLE_KB=$(df -P -k "$TARGET_DIR" | awk 'NR==2 {print $4}' 2>/dev/null || echo 0)
-    AVAILABLE_BYTES=$((AVAILABLE_KB * 1024))
 
     if [[ "$AVAILABLE_BYTES" -lt "$REQUIRED_BYTES" ]]; then
         echo "⚠️  WARNING: Insufficient disk space to process ${file##*/}. Skipping."
