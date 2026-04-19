@@ -325,6 +325,24 @@ echo "===================================================================="
 echo "Phase 1.5: Scrubbing Junk/Sample Files & Empty Directories"
 echo "===================================================================="
 if [[ "$CLEAN_JUNK" == "true" ]]; then
+    # Define junk and sample patterns
+    JUNK_EXTS=("*.nfo" "*.txt" "*.url" "*.exe" "*.com" "*.bat" ".DS_Store" "Thumbs.db" "._*")
+    SAMPLE_PATTERNS=("*sample*.mkv" "*sample*.mp4" "*sample*.avi")
+
+    # Build dynamic find arguments for junk extensions
+    FIND_JUNK_ARGS=()
+    for ext in "${JUNK_EXTS[@]}"; do
+        [[ ${#FIND_JUNK_ARGS[@]} -gt 0 ]] && FIND_JUNK_ARGS+=("-o")
+        FIND_JUNK_ARGS+=("-iname" "$ext")
+    done
+
+    # Build dynamic find arguments for sample patterns
+    FIND_SAMPLE_ARGS=()
+    for pat in "${SAMPLE_PATTERNS[@]}"; do
+        [[ ${#FIND_SAMPLE_ARGS[@]} -gt 0 ]] && FIND_SAMPLE_ARGS+=("-o")
+        FIND_SAMPLE_ARGS+=("-iname" "$pat")
+    done
+
     while IFS= read -r -d "" junkfile; do
         junk_size=$(get_file_size "$junkfile")
         filename="${junkfile##*/}"
@@ -337,7 +355,7 @@ if [[ "$CLEAN_JUNK" == "true" ]]; then
         fi
         ((STAT_JUNK_REMOVED++))
         ((STAT_JUNK_SAVED_BYTES+=junk_size))
-    done < <(find "$TARGET_DIR" -type f \( -iname "*.nfo" -o -iname "*.txt" -o -iname "*.url" -o -iname "*.exe" -o -iname "*.com" -o -iname "*.bat" -o -iname ".DS_Store" -o -iname "Thumbs.db" -o -iname "._*" \) -print0; find "$TARGET_DIR" -type f \( -iname "*sample*.mkv" -o -iname "*sample*.mp4" -o -iname "*sample*.avi" \) -size -50M -print0)
+    done < <(find "$TARGET_DIR" -type f \( \( "${FIND_JUNK_ARGS[@]}" \) -o \( \( "${FIND_SAMPLE_ARGS[@]}" \) -size -50M \) \) -print0)
 
     if [[ "$DRY_RUN" == "false" ]]; then
         while IFS= read -r -d "" emptydir; do
