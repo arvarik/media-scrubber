@@ -415,13 +415,8 @@ while IFS= read -r -d "" file; do
     fi
 
     # --- 3. Track Probe ---
-    # Use awk to produce clean tab-delimited output from ffprobe's CSV,
-    # extracting exactly the first 3 fields (index, codec_type, language).
-    # This eliminates ambiguity from comma-containing values and fragile multi-field re-joining.
-    PROBE_DATA=$(ffprobe -loglevel error \
-        -show_entries stream=index,codec_type:stream_tags=language \
-        -of csv=p=0 "$file" | tr -d '\r' | awk -F',' '{print $1 "\t" $2 "\t" $3}')
-
+    # Read ffprobe's CSV output directly using a bash loop to eliminate subprocess overhead.
+    # We extract exactly the first 3 fields (index, codec_type, language).
     DROP_ARGS=()
     AUDIO_TOTAL=0
     AUDIO_KEPT=0
@@ -432,7 +427,8 @@ while IFS= read -r -d "" file; do
 
     [[ "$STRIP_TAGS" == "true" ]] && NEEDS_TAG_STRIP=1
 
-    while IFS=$'\t' read -r idx codec lang; do
+    while IFS=, read -r idx codec lang rest; do
+        # Trim whitespace and potential carriage returns
         lang="${lang#"${lang%%[![:space:]]*}"}"
         lang="${lang%"${lang##*[![:space:]]}"}"
         lang="${lang,,}"
@@ -458,7 +454,9 @@ while IFS= read -r -d "" file; do
                 HAS_FOREIGN=1
             fi
         fi
-    done <<< "$PROBE_DATA"
+    done < <(ffprobe -loglevel error \
+        -show_entries stream=index,codec_type:stream_tags=language \
+        -of csv=p=0 "$file")
 
     if [[ "$HAS_FOREIGN" -eq 0 ]] && [[ "$NEEDS_TAG_STRIP" -eq 0 ]]; then
         ((STAT_MKV_CLEAN_SKIPS++))
