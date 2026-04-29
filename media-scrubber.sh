@@ -55,6 +55,41 @@ Examples:
 EOF
 }
 
+format_bytes() {
+    awk -v bytes="$1" 'BEGIN {
+        split("B KB MB GB TB", type)
+        for(i=1; bytes>=1024 && i<5; i++) bytes/=1024
+        printf "%.2f %s\n", bytes, type[i]
+    }'
+}
+
+get_file_size()  { stat -c "%s" "$1" 2>/dev/null || stat -f "%z" "$1" 2>/dev/null || echo 0; }
+get_file_mtime() { stat -c  %Y  "$1" 2>/dev/null || stat -f  %m  "$1" 2>/dev/null || echo 0; }
+get_file_links() { stat -c  '%h' "$1" 2>/dev/null || stat -f  '%l' "$1" 2>/dev/null || echo 1; }
+
+# Helper: commit a successfully remuxed tmp file over the original.
+# Usage: commit_output [description_suffix]
+commit_output() {
+    local NEW_SIZE_BYTES SAVED_BYTES
+    NEW_SIZE_BYTES=$(get_file_size "$tmp_file")
+    SAVED_BYTES=$((FILE_SIZE_BYTES - NEW_SIZE_BYTES))
+    [[ "$SAVED_BYTES" -lt 0 ]] && SAVED_BYTES=0
+
+    # Preserve original mtime; non-fatal if filesystem doesn't support it
+    touch -r "$file" "$tmp_file" || true
+    mv -f "$tmp_file" "$file"
+    AVAILABLE_BYTES=$((AVAILABLE_BYTES + SAVED_BYTES))
+    echo "✅ Successfully cleaned and replaced${1:+ ($1)}."
+    ((STAT_MKV_ALTERED++))
+    ((STAT_MKV_SAVED_BYTES+=SAVED_BYTES))
+    ((STAT_AUDIO_DROPPED += (AUDIO_TOTAL - AUDIO_KEPT)))
+    ((STAT_SUB_DROPPED   += (SUB_TOTAL  - SUB_KEPT)))
+    [[ "$NEEDS_TAG_STRIP" -eq 1 ]] && ((STAT_TAGS_STRIPPED++))
+}
+
+# --- MAIN EXECUTION ---
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+
 # --- ARGUMENT PARSING ---
 if [[ $# -eq 0 ]]; then
     show_help
@@ -251,43 +286,9 @@ STAT_SRT_SAVED_BYTES=0; STAT_MKV_SAVED_BYTES=0
 STAT_JUNK_REMOVED=0; STAT_DIRS_REMOVED=0; STAT_JUNK_SAVED_BYTES=0
 STAT_AUDIO_DROPPED=0; STAT_SUB_DROPPED=0; STAT_TAGS_STRIPPED=0; STAT_STREAMS_ANALYZED=0
 
-format_bytes() {
-    awk -v bytes="$1" 'BEGIN {
-        split("B KB MB GB TB", type)
-        for(i=1; bytes>=1024 && i<5; i++) bytes/=1024
-        printf "%.2f %s\n", bytes, type[i]
-    }'
-}
-
-get_file_size()  { stat -c "%s" "$1" 2>/dev/null || stat -f "%z" "$1" 2>/dev/null || echo 0; }
-get_file_mtime() { stat -c  %Y  "$1" 2>/dev/null || stat -f  %m  "$1" 2>/dev/null || echo 0; }
-get_file_links() { stat -c  '%h' "$1" 2>/dev/null || stat -f  '%l' "$1" 2>/dev/null || echo 1; }
-
 # Initialize disk space tracking
 AVAILABLE_KB=$(df -P -k "$TARGET_DIR" | awk 'NR==2 {print $4}' 2>/dev/null || echo 0)
 AVAILABLE_BYTES=$((AVAILABLE_KB * 1024))
-
-# Helper: commit a successfully remuxed tmp file over the original.
-# Usage: commit_output [description_suffix]
-# Reads from outer-scope: file, tmp_file, FILE_SIZE_BYTES, AUDIO_TOTAL, AUDIO_KEPT,
-#                         SUB_TOTAL, SUB_KEPT, NEEDS_TAG_STRIP
-commit_output() {
-    local NEW_SIZE_BYTES SAVED_BYTES
-    NEW_SIZE_BYTES=$(get_file_size "$tmp_file")
-    SAVED_BYTES=$((FILE_SIZE_BYTES - NEW_SIZE_BYTES))
-    [[ "$SAVED_BYTES" -lt 0 ]] && SAVED_BYTES=0
-
-    # Preserve original mtime; non-fatal if filesystem doesn't support it
-    touch -r "$file" "$tmp_file" || true
-    mv -f "$tmp_file" "$file"
-    AVAILABLE_BYTES=$((AVAILABLE_BYTES + SAVED_BYTES))
-    echo "✅ Successfully cleaned and replaced${1:+ ($1)}."
-    ((STAT_MKV_ALTERED++))
-    ((STAT_MKV_SAVED_BYTES+=SAVED_BYTES))
-    ((STAT_AUDIO_DROPPED += (AUDIO_TOTAL - AUDIO_KEPT)))
-    ((STAT_SUB_DROPPED   += (SUB_TOTAL  - SUB_KEPT)))
-    [[ "$NEEDS_TAG_STRIP" -eq 1 ]] && ((STAT_TAGS_STRIPPED++))
-}
 
 echo ""
 echo "===================================================================="
@@ -614,3 +615,4 @@ if [[ "$ELAPSED_SEC" -gt 0 ]] && [[ "$STAT_MKV_ALTERED" -gt 0 ]]; then
     printf "%-30s : ~%ss per scrubbed MKV\n" "Average Processing Speed" "$SPEED_SEC"
 fi
 echo "===================================================================="
+fi # End of sourceability guard
