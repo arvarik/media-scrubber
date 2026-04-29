@@ -263,6 +263,21 @@ get_file_size()  { stat -c "%s" "$1" 2>/dev/null || stat -f "%z" "$1" 2>/dev/nul
 get_file_mtime() { stat -c  %Y  "$1" 2>/dev/null || stat -f  %m  "$1" 2>/dev/null || echo 0; }
 get_file_links() { stat -c  '%h' "$1" 2>/dev/null || stat -f  '%l' "$1" 2>/dev/null || echo 1; }
 
+delete_file_safely() {
+    local file_path="$1"
+    local description="$2"
+    local file_size="$3"
+    local filename="${file_path##*/}"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "👀 [DRY-RUN] Would delete $description: $filename"
+    else
+        echo "🗑️  Deleting $description: $filename"
+        rm -f "$file_path"
+        AVAILABLE_BYTES=$((AVAILABLE_BYTES + file_size))
+    fi
+}
+
 # Initialize disk space tracking
 AVAILABLE_KB=$(df -P -k "$TARGET_DIR" | awk 'NR==2 {print $4}' 2>/dev/null || echo 0)
 AVAILABLE_BYTES=$((AVAILABLE_KB * 1024))
@@ -305,14 +320,7 @@ while IFS= read -r -d "" subfile; do
         if [[ "$lang_base" =~ $KNOWN_LANGS_REGEX ]]; then
             if [[ ! "$lang_code" =~ $KEEP_REGEX ]]; then
                 file_size=$(get_file_size "$subfile")
-
-                if [[ "$DRY_RUN" == "true" ]]; then
-                    echo "👀 [DRY-RUN] Would delete non-target subtitle: $filename"
-                else
-                    echo "🗑️  Deleting non-target subtitle: $filename"
-                    rm -f "$subfile"
-                    AVAILABLE_BYTES=$((AVAILABLE_BYTES + file_size))
-                fi
+                delete_file_safely "$subfile" "non-target subtitle" "$file_size"
                 ((STAT_SRT_SAVED_BYTES+=file_size))
                 ((STAT_SRT_REMOVED++))
             fi
@@ -345,14 +353,7 @@ if [[ "$CLEAN_JUNK" == "true" ]]; then
 
     while IFS= read -r -d "" junkfile; do
         junk_size=$(get_file_size "$junkfile")
-        filename="${junkfile##*/}"
-        if [[ "$DRY_RUN" == "true" ]]; then
-            echo "👀 [DRY-RUN] Would delete junk file: $filename"
-        else
-            echo "🗑️  Deleting junk file: $filename"
-            rm -f "$junkfile"
-            AVAILABLE_BYTES=$((AVAILABLE_BYTES + junk_size))
-        fi
+        delete_file_safely "$junkfile" "junk file" "$junk_size"
         ((STAT_JUNK_REMOVED++))
         ((STAT_JUNK_SAVED_BYTES+=junk_size))
     done < <(find "$TARGET_DIR" -type f \( \( "${FIND_JUNK_ARGS[@]}" \) -o \( \( "${FIND_SAMPLE_ARGS[@]}" \) -size -50M \) \) -print0)
