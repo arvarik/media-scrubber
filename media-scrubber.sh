@@ -243,6 +243,17 @@ KEEP_REGEX="${KEEP_REGEX})(-[a-z0-9]+)?$"
 KNOWN_LANGS="ab|aa|af|ak|sq|am|ar|ara|an|hy|as|av|ae|ay|az|bm|ba|eu|be|bn|bh|bi|bs|br|bg|bul|my|ca|ch|ce|ny|zh|zho|chi|zh-tw|zh-cn|zh-hk|zh-sg|zh-hant|zh-hans|cv|kw|co|cr|hr|hrv|cs|cze|ces|da|dan|nl|dut|nld|dz|eo|et|est|ee|fo|fj|fi|fin|fr|fre|fra|ff|gl|ka|de|ger|deu|el|gre|ell|gn|gu|ht|ha|he|heb|hz|hi|hin|ho|hu|hun|ig|is|io|ii|iu|ie|ia|id|ind|ik|it|ita|jv|ja|jpn|kl|kn|ks|kr|kk|km|ki|rw|ky|kv|kg|ko|kor|ku|kj|la|lb|lg|li|ln|lo|lt|lit|lu|lv|lav|gv|mk|mg|ms|may|msa|ml|mt|mi|mr|mh|mn|na|nv|nd|ne|ng|nb|nn|no|nor|ii|nr|oc|oj|cu|om|or|os|pa|pi|fa|per|fas|pl|pol|ps|pt|por|pt-br|pt-pt|qu|rm|rn|ro|rum|ron|ru|rus|sa|sc|sd|se|sm|sg|sr|srp|gd|sn|si|sk|slk|slo|sl|slv|so|st|es|spa|su|sw|ss|sv|swe|ta|te|tg|th|tha|ti|bo|tib|bod|tk|tl|tn|to|tr|tur|ts|tt|tw|ty|ug|uk|ukr|ur|uz|ve|vi|vie|vo|wa|cy|wel|cym|wo|fy|xh|yi|yo|za|zu"
 KNOWN_LANGS_REGEX="^(${KNOWN_LANGS})(-[a-z0-9]+)?$"
 
+# Detect stat flavor once to avoid process fork overhead in tight loops
+if stat -c "%s" "." >/dev/null 2>&1; then
+    STAT_SIZE_FMT="-c %s"
+    STAT_MTIME_FMT="-c %Y"
+    STAT_LINKS_FMT="-c %h"
+else
+    STAT_SIZE_FMT="-f %z"
+    STAT_MTIME_FMT="-f %m"
+    STAT_LINKS_FMT="-f %l"
+fi
+
 START_TIME=$(date +%s)
 
 STAT_SRT_TOTAL=0; STAT_SRT_REMOVED=0; STAT_MKV_TOTAL=0; STAT_MKV_ALTERED=0
@@ -259,9 +270,9 @@ format_bytes() {
     }'
 }
 
-get_file_size()  { stat -c "%s" "$1" 2>/dev/null || stat -f "%z" "$1" 2>/dev/null || echo 0; }
-get_file_mtime() { stat -c  %Y  "$1" 2>/dev/null || stat -f  %m  "$1" 2>/dev/null || echo 0; }
-get_file_links() { stat -c  '%h' "$1" 2>/dev/null || stat -f  '%l' "$1" 2>/dev/null || echo 1; }
+get_file_size()  { stat $STAT_SIZE_FMT  "$1" 2>/dev/null || echo 0; }
+get_file_mtime() { stat $STAT_MTIME_FMT "$1" 2>/dev/null || echo 0; }
+get_file_links() { stat $STAT_LINKS_FMT "$1" 2>/dev/null || echo 1; }
 
 delete_file_safely() {
     local file_path="$1"
