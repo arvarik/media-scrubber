@@ -519,6 +519,7 @@ while IFS= read -r -d "" file; do
     fi
 
     # --- 6. FFmpeg Execution ---
+    error_msg=""
     if ffmpeg -nostdin -y -v error -stats -i "$file" -map 0 "${DROP_ARGS[@]}" -c copy "${FF_DISPOSITION[@]}" "${FF_METADATA[@]}" "$tmp_file"; then
         if [[ -s "$tmp_file" ]]; then
             # Get raw float durations to avoid integer-truncation artefacts in the
@@ -540,24 +541,25 @@ while IFS= read -r -d "" file; do
                 else
                     OLD_DUR_INT=$(printf "%.0f" "$OLD_DUR_RAW")
                     NEW_DUR_INT=$(printf "%.0f" "$NEW_DUR_RAW")
-                    echo "❌ ERROR: Duration mismatch (Old: ${OLD_DUR_INT}s, New: ${NEW_DUR_INT}s). Aborting rewrite."
-                    rm -f "$tmp_file"
+                    error_msg="❌ ERROR: Duration mismatch (Old: ${OLD_DUR_INT}s, New: ${NEW_DUR_INT}s). Aborting rewrite."
                 fi
             else
                 # Duration unavailable; fall back to structural integrity probe
                 if ffprobe -loglevel error -show_format "$tmp_file" >/dev/null 2>&1; then
                     commit_output "verified via structural probe"
                 else
-                    echo "❌ ERROR: Output file failed structural integrity probe. Aborting rewrite."
-                    rm -f "$tmp_file"
+                    error_msg="❌ ERROR: Output file failed structural integrity probe. Aborting rewrite."
                 fi
             fi
         else
-            echo "❌ ERROR: FFmpeg output is empty. Aborting rewrite."
-            rm -f "$tmp_file"
+            error_msg="❌ ERROR: FFmpeg output is empty. Aborting rewrite."
         fi
     else
-        echo "❌ ERROR: FFmpeg processing failed. Aborting rewrite."
+        error_msg="❌ ERROR: FFmpeg processing failed. Aborting rewrite."
+    fi
+
+    if [[ -n "$error_msg" ]]; then
+        echo "$error_msg"
         rm -f "$tmp_file"
     fi
     tmp_file=""
